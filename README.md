@@ -1,6 +1,3 @@
-Here’s an updated `README.md` tailored exactly to your repo structure from the ZIP 👇
-(You can just drop this into `milvus/README.md`.)
-
 ````markdown
 # 🧠 Milvus Multitenant Demo on IBM Cloud
 
