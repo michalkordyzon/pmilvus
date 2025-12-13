@@ -1,8 +1,8 @@
-Here’s an updated `README.md` tailored exactly to your repo structure from the ZIP 👇
-(You can just drop this into `milvus/README.md`.)
-
 ````markdown
 # 🧠 Milvus Multitenant Demo on IBM Cloud
+
+
+For streamlit app go [here](https://github.ibm.com/InfiniteLoopLair/milvus/app/README.md)
 
 This project shows how to connect to **IBM Milvus (managed Milvus on IBM Cloud)** from Python and use it as a **vector database for multitenant retrieval**.
 
