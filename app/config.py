@@ -4,8 +4,8 @@
 #MILVUS_PORT = "19530"
 
 COLLECTION_MAP = {
-    "Employee": "tenders_employees",
-    "Manager": "tenders_managers",
+    "Employee": "PUBLIC_COLLECTION",
+    "Manager": "MANAGERS_COLLECTION",
 }
 
 DEFAULT_TOP_K = 5
