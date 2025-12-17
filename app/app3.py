@@ -1,13 +1,13 @@
 # app.py
 import streamlit as st
-#from functools import lru_cache
+from functools import lru_cache
+
 from config import COLLECTION_MAP, DEFAULT_TOP_K
 
 from rag_backend import connect_milvus, answer_question, ensure_collection, \
     prep_embedding, ingest_pdf_to_collection   
 from sentence_transformers import SentenceTransformer
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-from pprint import pprint
 
 import os
 from dotenv import load_dotenv
@@ -31,6 +31,19 @@ MANAGERS_COLLECTION = "offerings_managers_only"
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384  # fixed for this model
 
+# ---------- Embedding model (example) ----------
+
+# @lru_cache(maxsize=1)
+# def get_embedder():
+#     from sentence_transformers import SentenceTransformer
+#     return SentenceTransformer("all-MiniLM-L6-v2")
+
+# def embed_fn(EMBEDDING_MODEL_NAME):
+#     # model = get_embedder()
+#     # return model.encode(texts).tolist()
+#     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+#     return model
+
 # ---------- Embedding model ----------
 
 @st.cache_resource
@@ -48,7 +61,6 @@ def embed_fn(texts):
 
 
 
-
 # ---------- Session state ----------
 if "milvus_connected" not in st.session_state:
     st.session_state.milvus_connected = False
@@ -60,17 +72,10 @@ if "is_embedding" not in st.session_state:
 if "last_backend_error" not in st.session_state:
     st.session_state.last_backend_error = None
 
-if "is_collection" not in st.session_state:
-    st.session_state.is_collection = False
+# if "collection_created_checked" not in st.session_state:
+#     st.session_state.
 
-if "data_is_loaded" not in st.session_state:
-    st.session_state.data_is_loaded = False
-
-if "is_sample" not in st.session_state:
-    st.session_state.is_sample = False
-
-
-
+#st.session_state.client
 
 # ---------- Actions (safe callbacks) ----------
 
@@ -82,7 +87,6 @@ def connect_milvus_bt():
         st.session_state.milvus_connected = True
         st.session_state.client = res
         st.session_state.last_backend_error = None
-        st.success(f"Connected to Milvus")
     except Exception as e:
         st.session_state.milvus_connected = False
         st.session_state.last_backend_error = f"Connect failed: {e}"
@@ -93,9 +97,7 @@ def prepare_embedding():
         stats = prep_embedding(embed_fn=embed_fn, collection_map=COLLECTION_MAP)
         st.session_state.is_embedding = True
         st.session_state.last_backend_error = None
-        #st.sidebar.success(f"Embedding prepared. Stats: {stats}")
-        st.success(f"Embedding prepared. Stats: {stats}")
-        #bottom_status.success(f"Embedding prepared. Stats: {stats}")
+        st.sidebar.success(f"Embedding prepared. Stats: {stats}")
     except Exception as e:
         st.session_state.is_embedding = False
         st.session_state.last_backend_error = f"Load failed: {e}"
@@ -104,21 +106,22 @@ def prepare_collections(client, PUBLIC_COLLECTION, MANAGERS_COLLECTION):
     try:
         ensure_collection(client, PUBLIC_COLLECTION, EMBEDDING_DIM)
         ensure_collection(client, MANAGERS_COLLECTION, EMBEDDING_DIM)
-        
+
         st.session_state.is_collection = True
         #st.session_state.last_backend_error = None
-        st.success(f"Collections created.")
+        st.sidebar.success(f"Loaded collections: {st.session_state.client.list_collections()}")
     except Exception as e:
-        st.session_state.is_collection = False
+        #st.session_state.data_loaded = False
         st.session_state.last_backend_error = f"Something wrong creating collections: {e}"
-   
     try:
         st.session_state.client.load_collection(PUBLIC_COLLECTION)
         st.session_state.client.load_collection(MANAGERS_COLLECTION)
-        st.success(f"Collections loaded: {st.session_state.client.list_collections()}")
+        print("Collections loaded.")
     except Exception as e:
-        st.session_state.is_collection = False
+        #st.session_state.data_loaded = False
         st.session_state.last_backend_error = f"Something wrong with loading collections: {e}"
+
+
 
 def load_data():
     try:
@@ -128,33 +131,12 @@ def load_data():
             pdf_path=PUBLIC_PDF_PATH,
             offering_id="offering_xyz",  # use a real ID if you have one
             # model=model,
-            model=get_embedder(EMBEDDING_MODEL_NAME)
+            model=embed_fn
         )
-        st.session_state.data_is_loaded = True
-        st.success(f"Data is loaded into collection.")
     except Exception as e:
-        st.session_state.data_is_loaded = False
-        st.session_state.last_backend_error = f"Something is wrong with loading data: {e}"
+        #st.session_state.data_loaded = False
+        st.session_state.last_backend_error = f"Something wrong with loading data: {e}"
 
-def sample_col():
-    try:
-        rows_public = st.session_state.client.query(
-                collection_name=PUBLIC_COLLECTION,
-                filter="offering_id == 'offering_xyz'",
-                output_fields=["id", "offering_id", "text"],
-                limit=5,
-            )
-    
-        for r in rows_public:
-            #print("----")
-            #pprint(r)
-            st.write("---")
-            st.write(r)
-        st.session_state.is_sample= True
-        st.success(f"Data sampling works.")
-    except Exception as e:
-        st.session_state.is_sample = False
-        st.session_state.last_backend_error = f"Something is wrong with sampling vector db: {e}"
 
 
 # ------------------------
@@ -162,48 +144,36 @@ def sample_col():
 # ------------------------
 
 st.set_page_config(page_title="Tender QA (Milvus + Granite)", layout="wide")
-st.title("🔍 Multitenant Milvus DEMO")
+st.title("🔍 Tender Q&A assistant")
 st.caption("Milvus + LLM RAG • managers vs employees collections")
 
 with st.sidebar:
-    st.subheader("Configure things:")
+    st.header("Settings")
+    role = st.radio("Your role", ["Employee", "Manager"])
+    top_k = st.slider("Number of passages", 1, 10, DEFAULT_TOP_K)
+    show_debug = st.checkbox("Show retrieved passages", value=True)
 
-    # st.write("Status:  \n",
-    #          "🟢 connected" if st.session_state.milvus_connected else "🔴 not connected",
-    #          "  \n",
-    #          "🟢 embedding ready" if st.session_state.is_embedding else "🔴 no embedding")
-    st.write("")
+    st.markdown("---")
+    st.subheader("Milvus controls")
+
+    st.write("Status:  \n",
+             "🟢 connected" if st.session_state.milvus_connected else "🔴 not connected",
+             "  \n",
+             "🟢 embedding ready" if st.session_state.is_embedding else "🔴 no embedding")
+
     st.button("🔌 Connect to Milvus", on_click=connect_milvus_bt)
-    st.write("🟢 Connected" if st.session_state.milvus_connected else "🔴 Not connected")
-
-    st.write("")
     st.button("🧩 Prepare embedding", on_click=prepare_embedding)
-    st.write("🟢 Embedding ready" if st.session_state.is_embedding else "🔴 No embedding")
-
-    st.write("")
-    st.button("🗄️ Prepare collections",
-              on_click=prepare_collections,
+    st.button("🗄️ Prepare collections", 
+              on_click=prepare_collections, 
               args=(      
                 st.session_state.client,
                 PUBLIC_COLLECTION,
                 MANAGERS_COLLECTION,
               ))
-    st.write("🟢 Collections ready" if st.session_state.is_collection else "🔴 No collections")
-
-    st.write("")
     st.button("📥 Load data", on_click=load_data)
-    st.write("🟢 Data load made" if st.session_state.data_is_loaded else "🔴 No collections")
 
-    st.write("")
-    st.button("🧪 Sample collection", on_click=sample_col)
-    st.write("🟢 Sample made" if st.session_state.is_sample else "🔴 No sample")
-    
-    st.markdown("---")
-
-    st.header("Settings")
-    role = st.radio("Your role", ["Employee", "Manager"])
-    top_k = st.slider("Number of passages", 1, 10, DEFAULT_TOP_K)
-    show_debug = st.checkbox("Show retrieved passages", value=True)
+    if st.session_state.last_backend_error:
+        st.error(st.session_state.last_backend_error)
 
 st.markdown(
     f"Current role: **{role}** – you will only search in "
@@ -241,7 +211,3 @@ if st.button("Ask"):
                     st.write(p["text"])
                     if p.get("source"):
                         st.caption(f"Source: {p['source']}")
-
-
-#bottom_status = st.empty()
-# the end
