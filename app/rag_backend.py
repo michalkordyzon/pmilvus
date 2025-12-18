@@ -64,29 +64,58 @@ def get_collection(collection_name: str) -> Collection:
     return Collection(collection_name)
 
 def semantic_search(
-    collection_name: str,
-    query: str,
-    embed_fn,
-    top_k: int = 5
-) -> List[Dict]:
-    col = get_collection(collection_name)
-    q_emb = embed_fn([query])  # shape: (1, dim)
-    results = col.search(
+    client: MilvusClient, 
+    collection_name: str, 
+    query: str, 
+    embed_fn, 
+    top_k: int = 5):
+    q_emb = embed_fn([query])  # [[...]]
+    res = client.search(
+        collection_name=collection_name,
         data=q_emb,
         anns_field="embedding",
-        param={"metric_type": "IP", "params": {"nprobe": 10}},
         limit=top_k,
-        output_fields=["id", "text", "source"]
+        search_params={"metric_type": "COSINE", "params": {"nprobe": 10}},
+        output_fields=["text", "source"],
     )
-    hits = results[0]
-    return [
-        {
-            "text": h.entity.get("text"),
-            "source": h.entity.get("source"),
-            "score": h.distance,
-        }
-        for h in hits
-    ]
+
+    hits = res[0] if res else []
+    out = []
+    for h in hits:
+        # depending on pymilvus version, fields may be in h["entity"] or h["fields"]
+        entity = h.get("entity") or h.get("fields") or {}
+        out.append({
+            "text": entity.get("text"),
+            "source": entity.get("source"),
+            "score": h.get("distance") or h.get("score"),
+        })
+    return out
+
+
+# def semantic_search(
+#     collection_name: str,
+#     query: str,
+#     embed_fn,
+#     top_k: int = 5
+# ) -> List[Dict]:
+#     col = get_collection(collection_name)
+#     q_emb = embed_fn([query])  # shape: (1, dim)
+#     results = col.search(
+#         data=q_emb,
+#         anns_field="embedding",
+#         param={"metric_type": "IP", "params": {"nprobe": 10}},
+#         limit=top_k,
+#         output_fields=["id", "text", "source"]
+#     )
+#     hits = results[0]
+#     return [
+#         {
+#             "text": h.entity.get("text"),
+#             "source": h.entity.get("source"),
+#             "score": h.distance,
+#         }
+#         for h in hits
+#     ]
 
 # ---------- LLM call ----------
 
@@ -115,18 +144,31 @@ def call_llm(prompt: str) -> str:
 
 
 
+# def answer_question(
+#     question: str,
+#     role: str,
+#     embed_fn,
+#     collection_map: Dict[str, str],
+#     top_k: int = 5
+# ) -> Dict:
+#     collection_name = collection_map[role]
+#     passages = semantic_search(collection_name, question, embed_fn, top_k=top_k)
+#     # prompt = build_prompt(question, passages, role)
+#     # answer = call_llm(prompt)
+#     # return {"answer": answer, "passages": passages}
+#     return {"answer": "123", "passages": passages}
+
 def answer_question(
-    question: str,
-    role: str,
-    embed_fn,
-    collection_map: Dict[str, str],
-    top_k: int = 5
-) -> Dict:
+    client: MilvusClient, 
+    question: str, 
+    role: str, 
+    embed_fn, 
+    collection_map, 
+    top_k: int = 5):
     collection_name = collection_map[role]
-    passages = semantic_search(collection_name, question, embed_fn, top_k=top_k)
-    prompt = build_prompt(question, passages, role)
-    answer = call_llm(prompt)
-    return {"answer": answer, "passages": passages}
+    passages = semantic_search(client, collection_name, question, embed_fn, top_k=top_k)
+    return {"answer": "123", "passages": passages}
+
 
 def prep_embedding(embed_fn, collection_map):
     # Warm-up: force model load + sanity check dim
@@ -176,6 +218,13 @@ def ensure_collection(client: MilvusClient, collection_name: str, dim: int):
         datatype=DataType.FLOAT_VECTOR,
         dim=dim,
     )
+
+    schema.add_field(
+        field_name="source",
+        datatype=DataType.VARCHAR,
+        max_length=512,
+    )
+
 
     # 2. Create collection (no index yet)
     client.create_collection(
@@ -234,7 +283,9 @@ def ingest_pdf_to_collection(
 
     # 4. Build rows
     print("  [4] Building insert payload...")
-    rows = build_insert_payload(offering_id, chunks, embeddings)
+    #rows = build_insert_payload(offering_id, chunks, embeddings)
+    rows = build_insert_payload(offering_id, chunks, embeddings, source=pdf_path)
+
     print(f"      Rows to insert: {len(rows)}")
 
     # 5. Insert into Milvus
@@ -303,23 +354,49 @@ def embed_chunks(model, chunks: List[str]) -> List[List[float]]:
     return embeddings.tolist()
 
 
+# def build_insert_payload(
+#     offering_id: str,
+#     chunks: List[str],
+#     embeddings: List[List[float]],
+# ) -> List[Dict]:
+#     """
+#     Build Milvus insert payload: one dict per row, with fields matching schema.
+#     """
+#     assert len(chunks) == len(embeddings)
+#     rows = []
+#     for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+#         rows.append(
+#             {
+#                 # 'id' is auto_id, so we omit it
+#                 "offering_id": offering_id,
+#                 "text": chunk,
+#                 "embedding": emb,
+#             }
+#         )
+#     return rows
+
 def build_insert_payload(
     offering_id: str,
     chunks: List[str],
     embeddings: List[List[float]],
+    source: str,
 ) -> List[Dict]:
     """
     Build Milvus insert payload: one dict per row, with fields matching schema.
     """
-    assert len(chunks) == len(embeddings)
+    assert len(chunks) == len(embeddings), "Chunks and embeddings length mismatch"
+
     rows = []
     for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         rows.append(
             {
-                # 'id' is auto_id, so we omit it
+                # 'id' is auto_id=True, so we do NOT provide it
                 "offering_id": offering_id,
                 "text": chunk,
                 "embedding": emb,
+                "source": f"{source}#chunk={i}",
             }
         )
+
     return rows
+

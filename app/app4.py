@@ -4,8 +4,7 @@ import streamlit as st
 from config import COLLECTION_MAP, DEFAULT_TOP_K
 
 from rag_backend import connect_milvus, answer_question, ensure_collection, \
-    prep_embedding, ingest_pdf_to_collection  
-from milvus_utils import drop_milvus_collections
+    prep_embedding, ingest_pdf_to_collection   
 from sentence_transformers import SentenceTransformer
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 from pprint import pprint
@@ -121,89 +120,21 @@ def prepare_collections(client, PUBLIC_COLLECTION, MANAGERS_COLLECTION):
         st.session_state.is_collection = False
         st.session_state.last_backend_error = f"Something wrong with loading collections: {e}"
 
-# def load_data():
-#     try:
-#         client = st.session_state.client
-#         if client is None:
-#             st.warning("Connect to Milvus first.")
-#             return
-
-#         # Public
-#         ingest_pdf_to_collection(
-#             client=client,
-#             collection_name=PUBLIC_COLLECTION,
-#             pdf_path=PUBLIC_PDF_PATH,
-#             offering_id="offering_xyz",
-#             model=get_embedder(EMBEDDING_MODEL_NAME),
-#         )
-
-#         # Managers
-#         ingest_pdf_to_collection(
-#             client=client,
-#             collection_name=MANAGERS_COLLECTION,
-#             pdf_path=MANAGERS_PDF_PATH,
-#             offering_id="offering_xyz",
-#             model=get_embedder(EMBEDDING_MODEL_NAME),
-#         )
-
-#         st.session_state.data_is_loaded = True
-#         st.success("Data loaded into BOTH collections.")
-#     except Exception as e:
-#         st.session_state.data_is_loaded = False
-#         st.session_state.last_backend_error = f"Load data failed: {type(e).__name__}: {e}"
-#         st.error(st.session_state.last_backend_error)
-
-
-
 def load_data():
     try:
-        client = st.session_state.client
-        if client is None:
-            st.warning("Connect to Milvus first.")
-            return
-
-        # Public
         ingest_pdf_to_collection(
-            client=client,
+            client=st.session_state.client,
             collection_name=PUBLIC_COLLECTION,
             pdf_path=PUBLIC_PDF_PATH,
-            offering_id="offering_xyz",
-            model=get_embedder(EMBEDDING_MODEL_NAME),
+            offering_id="offering_xyz",  # use a real ID if you have one
+            # model=model,
+            model=get_embedder(EMBEDDING_MODEL_NAME)
         )
-
-        # Managers
-        ingest_pdf_to_collection(
-            client=client,
-            collection_name=MANAGERS_COLLECTION,
-            pdf_path=MANAGERS_PDF_PATH,
-            offering_id="offering_xyz",
-            model=get_embedder(EMBEDDING_MODEL_NAME),
-        )
-
         st.session_state.data_is_loaded = True
-        st.success("Data loaded into BOTH collections.")
+        st.success(f"Data is loaded into collection.")
     except Exception as e:
         st.session_state.data_is_loaded = False
-        st.session_state.last_backend_error = f"Load data failed: {type(e).__name__}: {e}"
-        st.error(st.session_state.last_backend_error)
-
-
-# def load_data():
-#     try:
-#         ingest_pdf_to_collection(
-#             client=st.session_state.client,
-#             collection_name=PUBLIC_COLLECTION,
-#             pdf_path=PUBLIC_PDF_PATH,
-#             offering_id="offering_xyz",  # use a real ID if you have one
-#             # model=model,
-#             model=get_embedder(EMBEDDING_MODEL_NAME)
-#         )
-#         st.session_state.data_is_loaded = True
-#         st.success(f"Data is loaded into collection.")
-#     except Exception as e:
-#         st.session_state.data_is_loaded = False
-#         st.session_state.last_backend_error = f"Something is wrong with loading data: {e}"
-#         st.error(st.session_state.last_backend_error)
+        st.session_state.last_backend_error = f"Something is wrong with loading data: {e}"
 
 def sample_col():
     try:
@@ -226,44 +157,12 @@ def sample_col():
         st.session_state.last_backend_error = f"Something is wrong with sampling vector db: {e}"
 
 
-# def drop_milvus_coll():
-#     drop_milvus_collections(
-#     client=st.session_state.client,
-#     collections=[
-#         "offerings_public",
-#         "offerings_managers_only",
-#     ],)
-#     st.session_state.is_collection = False
-#     st.session_state.data_is_loaded = False
-
-def drop_milvus_coll():
-    try:
-        if st.session_state.client is None:
-            st.warning("Connect first.")
-            return
-
-        drop_milvus_collections(
-            client=st.session_state.client,
-            collections=[PUBLIC_COLLECTION, MANAGERS_COLLECTION],
-        )
-        st.session_state.is_collection = False
-        st.session_state.data_is_loaded = False
-        st.session_state.is_sample = False
-        st.success("Collections dropped.")
-    except Exception as e:
-        st.session_state.last_backend_error = f"Drop failed: {type(e).__name__}: {e}"
-        st.error(st.session_state.last_backend_error)
-
-
-
-
-
 # ------------------------
 # ---------- UI ----------
 # ------------------------
 
-st.set_page_config(page_title="RAG Demo (Milvus + Granite)", layout="wide")
-st.title("🔍 Multitenant Milvus RAG DEMO")
+st.set_page_config(page_title="Tender QA (Milvus + Granite)", layout="wide")
+st.title("🔍 Multitenant Milvus DEMO")
 st.caption("Milvus + LLM RAG • managers vs employees collections")
 
 with st.sidebar:
@@ -274,7 +173,7 @@ with st.sidebar:
     #          "  \n",
     #          "🟢 embedding ready" if st.session_state.is_embedding else "🔴 no embedding")
     st.write("")
-    st.button("1 - __Connect to Milvus 🔌", on_click=connect_milvus_bt)
+    st.button("1 - Connect to Milvus 🔌", on_click=connect_milvus_bt)
     st.write("🟢 Connected" if st.session_state.milvus_connected else "🔴 Not connected")
 
     st.write("")
@@ -282,7 +181,7 @@ with st.sidebar:
     st.write("🟢 Embedding ready" if st.session_state.is_embedding else "🔴 No embedding")
 
     st.write("")
-    st.button("3 - _Prepare collections 🗄️",
+    st.button("3 - Prepare collections 🗄️",
               on_click=prepare_collections,
               args=(      
                 st.session_state.client,
@@ -292,11 +191,11 @@ with st.sidebar:
     st.write("🟢 Collections ready" if st.session_state.is_collection else "🔴 No collections")
 
     st.write("")
-    st.button("4 - ________Load data 📥", on_click=load_data)
+    st.button("4 - Load data 📥", on_click=load_data)
     st.write("🟢 Data load made" if st.session_state.data_is_loaded else "🔴 No collections")
 
     st.write("")
-    st.button("5 - __Sample collection 🧪", on_click=sample_col)
+    st.button("5 - Sample collection 🧪", on_click=sample_col)
     st.write("🟢 Sample made" if st.session_state.is_sample else "🔴 No sample")
     
     st.markdown("---")
@@ -306,13 +205,6 @@ with st.sidebar:
     top_k = st.slider("Number of passages", 1, 10, DEFAULT_TOP_K)
     show_debug = st.checkbox("Show retrieved passages", value=True)
 
-    st.markdown("---")
-    st.header("Utilities")
-    st.button("DROP Milvus collections ", on_click=drop_milvus_coll)
-
-
-
-
 st.markdown(
     f"Current role: **{role}** – you will only search in "
     f"`{COLLECTION_MAP[role]}` collection."
@@ -320,7 +212,7 @@ st.markdown(
 
 question = st.text_area(
     "Ask a question about tenders:",
-    placeholder="TravelFlex",
+    placeholder="e.g. What are the evaluation criteria for IT infrastructure tender?",
     height=100,
 )
 
@@ -331,22 +223,13 @@ if st.button("Ask"):
         st.warning("You are not connected to Milvus - go through a setup using buttons 1-5 on the sidebar.")
     else:
         with st.spinner("Searching Milvus and generating answer..."):
-            # result = answer_question(
-            #     question=question,
-            #     role=role,
-            #     embed_fn=embed_fn,
-            #     collection_map=COLLECTION_MAP,
-            #     top_k=top_k,
-            # )
-                result = answer_question(
-                client=st.session_state.client,
+            result = answer_question(
                 question=question,
                 role=role,
                 embed_fn=embed_fn,
                 collection_map=COLLECTION_MAP,
                 top_k=top_k,
             )
-
 
         st.subheader("Answer")
         st.write(result["answer"])
@@ -361,9 +244,4 @@ if st.button("Ask"):
 
 
 #bottom_status = st.empty()
-
-# SANITY CHECKS
-#st.write("Collections visible:", st.session_state.client.list_collections())
-#st.write("Schema:", st.session_state.client.describe_collection("offerings_public"))
-# st.write("Public count:", st.session_state.client.get_collection_stats(PUBLIC_COLLECTION))
-# st.write("Managers count:", st.session_state.client.get_collection_stats(MANAGERS_COLLECTION))
+# the end
