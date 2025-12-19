@@ -5,7 +5,7 @@ from config import COLLECTION_MAP, DEFAULT_TOP_K
 
 from rag_backend import connect_milvus, answer_question, ensure_collection, \
     prep_embedding, ingest_pdf_to_collection  
-from milvus_utils import drop_milvus_collections
+from milvus_utils import drop_milvus_collections, pause_milvus_service
 from sentence_transformers import SentenceTransformer
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 from pprint import pprint
@@ -15,12 +15,14 @@ from dotenv import load_dotenv
 load_dotenv()
 MILVUS_HOST = os.getenv("MILVUS_HOST")
 MILVUS_PORT = os.getenv("MILVUS_PORT")
-MILVUS_API_KEY = os.getenv("MILVUS_API_KEY")  # keep, but don't force into init_milvus unless supported
+API_KEY = os.getenv("API_KEY")  # keep, but don't force into init_milvus unless supported
+SERVICE_ID = os.getenv("SERVICE_ID")
+AUTH_INSTANCE_ID = None  # or from st.secrets / env
+
 # print("########################")
 # print(MILVUS_HOST)
 # print(MILVUS_PORT)
 # print(MILVUS_API_KEY)
-
 
 PUBLIC_PDF_PATH = "./data/offerings_public.pdf"
 MANAGERS_PDF_PATH = "./data/offerings_managers_only.pdf"
@@ -79,7 +81,7 @@ def connect_milvus_bt():
     try:
         # IMPORTANT: keep the signature you already have
         # init_milvus(MILVUS_HOST, MILVUS_PORT, MILVUS_API_KEY)
-        res = connect_milvus(MILVUS_HOST, MILVUS_PORT, MILVUS_API_KEY)
+        res = connect_milvus(MILVUS_HOST, MILVUS_PORT, API_KEY)
         st.session_state.milvus_connected = True
         st.session_state.client = res
         st.session_state.last_backend_error = None
@@ -188,23 +190,6 @@ def load_data():
         st.error(st.session_state.last_backend_error)
 
 
-# def load_data():
-#     try:
-#         ingest_pdf_to_collection(
-#             client=st.session_state.client,
-#             collection_name=PUBLIC_COLLECTION,
-#             pdf_path=PUBLIC_PDF_PATH,
-#             offering_id="offering_xyz",  # use a real ID if you have one
-#             # model=model,
-#             model=get_embedder(EMBEDDING_MODEL_NAME)
-#         )
-#         st.session_state.data_is_loaded = True
-#         st.success(f"Data is loaded into collection.")
-#     except Exception as e:
-#         st.session_state.data_is_loaded = False
-#         st.session_state.last_backend_error = f"Something is wrong with loading data: {e}"
-#         st.error(st.session_state.last_backend_error)
-
 def sample_col():
     try:
         rows_public = st.session_state.client.query(
@@ -307,9 +292,32 @@ with st.sidebar:
     show_debug = st.checkbox("Show retrieved passages", value=True)
 
     st.markdown("---")
-    st.header("Utilities")
+    st.header("Milvus controls")
+    
     st.button("DROP Milvus collections ", on_click=drop_milvus_coll)
+    #st.write("🟢 Sample made" if st.session_state.is_sample else "🔴 No sample")
+    
+    # better way -> runs only the if script, not entire app.py
+    if st.button("⏸️ Pause Milvus", disabled=not SERVICE_ID):
+        try:
+            resp = pause_milvus_service(
+                service_id=SERVICE_ID,
+                auth_instance_id=AUTH_INSTANCE_ID,
+            )
+            st.success(f"Pause request sent (HTTP {resp.get_status_code()})")
+            st.json(resp.get_result())
+        except Exception as e:
+            st.error("Failed to pause Milvus")
+            st.exception(e)
+# #dodaj te dwie rzeczy:
+# AUTH_INSTANCE_ID = None  # or from st.secrets / env
+# service_id = st.text_input("Milvus service_id")
+# https address
 
+# # to juz jest
+# MILVUS_HOST = os.getenv("MILVUS_HOST")
+# MILVUS_PORT = os.getenv("MILVUS_PORT")
+# MILVUS_API_KEY = os.getenv("MILVUS_API_KEY")
 
 
 
