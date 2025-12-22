@@ -42,32 +42,12 @@ def get_wxd_client(api_key: Optional[str] = None, url: Optional[str] = None):
 
     authenticator = IAMAuthenticator(api_key)
 
-    # Your environment supports WatsonxDataV2 (as seen in your traceback)
     from ibm_watsonxdata.watsonx_data_v2 import WatsonxDataV2
     client = WatsonxDataV2(authenticator=authenticator)
 
-    # Must be base host only, e.g. https://api.eu-gb.watsonxdata.cloud.ibm.com
+    #https://api.eu-gb.watsonxdata.cloud.ibm.com
     client.set_service_url(url)
     return client
-
-# def get_wxd_client(
-#     api_key: Optional[str] = None,
-#     url: Optional[str] = None,
-#     ) -> ibm_watsonxdata:
-#     api_key = API_KEY
-#     url = WXDATA_URL
-
-#     if not api_key:
-#         raise ValueError("Missing WATSONXDATA_APIKEY")
-#     if not url:
-#         raise ValueError("Missing WATSONXDATA_URL")
-
-#     authenticator = IAMAuthenticator(api_key)
-
-
-#     client = ibm_watsonxdata(authenticator=authenticator)
-#     client.set_service_url(url)
-#     return client
 
 def pause_milvus_service(service_id: str, *, auth_instance_id: Optional[str] = None):
     client = get_wxd_client()
@@ -75,6 +55,10 @@ def pause_milvus_service(service_id: str, *, auth_instance_id: Optional[str] = N
         engine_id=service_id,
         auth_instance_id=auth_instance_id,
     )
+    # return client.create_milvus_service_pause(
+    #     service_id=service_id,
+    # )
+
 
 
 # def pause_milvus_service(
