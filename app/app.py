@@ -5,7 +5,8 @@ from config import COLLECTION_MAP, DEFAULT_TOP_K
 
 from rag_backend import connect_milvus, answer_question, ensure_collection, \
     prep_embedding, ingest_pdf_to_collection  
-from milvus_utils import drop_milvus_collections, pause_milvus_service
+#from milvus_utils import drop_milvus_collections, pause_milvus_service
+from milvus_utils2 import pause_milvus_service
 from sentence_transformers import SentenceTransformer
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 from pprint import pprint
@@ -303,6 +304,7 @@ with st.sidebar:
             resp = pause_milvus_service(
                 service_id=SERVICE_ID,
                 auth_instance_id=AUTH_INSTANCE_ID,
+                
             )
             st.success(f"Pause request sent (HTTP {resp.get_status_code()})")
             st.json(resp.get_result())
