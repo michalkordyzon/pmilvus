@@ -1,0 +1,38 @@
+potrzebne dane: 
+-IBM_CLOUD_API_KEY
+-region (u mnie eu-gb)
+-service_id (u mnie milvus238)
+-AuthInstanceId (u mnie, crn:......)
+
+1.
+export IBM_CLOUD_API_KEY ="TUTAJ_WASZ_KLUCZ_API”
+(echo $IBM_CLOUD_API_KEY)
+2.
+IAM_TOKEN=$(curl -s -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=$IBM_CLOUD_API_KEY" \
+  https://iam.cloud.ibm.com/identity/token \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+(echo $IAM_TOKEN)
+
+4. pauzujemy silink milvusa (efekt natychmiastowy) 
+
+curl -i -X POST \
+  "https://eu-gb.lakehouse.cloud.ibm.com/lakehouse/api/v2/milvus_services/milvus238/pause" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $IAM_TOKEN" \
+  -H "AuthInstanceId: crn:v1:bluemix:public:lakehouse:eu-gb:a/2311e98e393e41b2867a3d538ab3837e:f64ecc48-3824-42c0-8cb8-cd6d9f363756::" \
+  -d ''
+
+5.robimy RESUME silnka milvus (efekt po kiklunastu-kilkudziesięciu sekundach)
+
+curl -i -X POST \
+  "https://eu-gb.lakehouse.cloud.ibm.com/lakehouse/api/v2/milvus_services/milvus238/resume" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $IAM_TOKEN" \
+  -H "AuthInstanceId: crn:v1:bluemix:public:lakehouse:eu-gb:a/2311e98e393e41b2867a3d538ab3837e:f64ecc48-3824-42c0-8cb8-cd6d9f363756::" \
+  -d ''
+
